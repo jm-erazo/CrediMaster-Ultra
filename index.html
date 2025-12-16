@@ -63,7 +63,8 @@
             Menu, X, BrainCircuit, Wallet, Target, BarChart3, ShieldCheck, 
             List, ChevronRight, Info, Printer, Sparkles, Bot, Settings, 
             FileText, TrendingDown, TrendingUp, Share2, Copy, Calculator, PiggyBank,
-            Coffee, Home, Car, ShoppingBag, Zap, ExternalLink, User, Building2, CreditCard
+            Coffee, Home, Car, ShoppingBag, Zap, ExternalLink, User, Building2, CreditCard,
+            RotateCcw, CheckCircle2
         } from 'lucide-react';
         
         import { 
@@ -104,7 +105,7 @@
 
         // --- COMPONENTES UI GENÉRICOS ---
 
-        const NumericInput = ({ label, value, onChange, type = 'currency', className = '', icon: Icon }) => {
+        const NumericInput = ({ label, value, onChange, type = 'currency', className = '', icon: Icon, placeholder = "0", highlight = false }) => {
             const [displayValue, setDisplayValue] = useState('');
 
             // Sincronizar estado externo con visualización interna
@@ -156,9 +157,9 @@
 
             return (
                 <div className={`space-y-2 ${className}`}>
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide flex flex-wrap justify-between gap-1 items-center">
+                    <label className={`text-xs font-bold uppercase tracking-wide flex flex-wrap justify-between gap-1 items-center ${highlight ? 'text-indigo-600' : 'text-slate-500'}`}>
                         <span className="flex items-center gap-1.5">
-                            {Icon && <Icon size={14} className="text-slate-400" />}
+                            {Icon && <Icon size={14} className={highlight ? 'text-indigo-500' : 'text-slate-400'} />}
                             {label}
                         </span>
                         {type === 'percent' && <span className="text-slate-400 font-normal whitespace-nowrap">% E.A.</span>}
@@ -166,7 +167,7 @@
                     <div className="relative group">
                         {type === 'currency' && (
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <span className="text-slate-400 font-semibold group-focus-within:text-blue-500 transition-colors">$</span>
+                                <span className={`font-semibold transition-colors ${highlight ? 'text-indigo-500' : 'text-slate-400 group-focus-within:text-blue-500'}`}>$</span>
                             </div>
                         )}
                         <input
@@ -174,8 +175,8 @@
                             inputMode={type === 'percent' ? "decimal" : "numeric"}
                             value={displayValue}
                             onChange={handleChange}
-                            className={`block w-full rounded-xl border-slate-200 bg-slate-50 p-3 text-sm font-bold text-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:bg-white shadow-sm transition-all outline-none border ${type === 'currency' ? 'pl-7' : ''}`}
-                            placeholder="0"
+                            className={`block w-full rounded-xl p-3 text-sm font-bold focus:ring-2 shadow-sm transition-all outline-none border ${type === 'currency' ? 'pl-7' : ''} ${highlight ? 'bg-indigo-50 border-indigo-200 text-indigo-900 focus:border-indigo-500 focus:ring-indigo-200' : 'bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-500 focus:ring-blue-200 focus:bg-white'}`}
+                            placeholder={placeholder}
                         />
                         {type === 'percent' && (
                             <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -216,6 +217,25 @@
                         value={inputs.loanAmount} 
                         onChange={(v) => handleInputChange('loanAmount', v)} 
                     />
+                    
+                    {/* NUEVO CAMPO: CUOTA REAL */}
+                    <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 relative">
+                        <div className="absolute -top-2 right-2 bg-indigo-100 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                            Recomendado
+                        </div>
+                        <NumericInput 
+                            label="Valor Cuota Extracto (Total)" 
+                            value={inputs.currentQuota} 
+                            onChange={(v) => handleInputChange('currentQuota', v)} 
+                            highlight={true}
+                            icon={CheckCircle2}
+                            placeholder="Ej: 2.500.000"
+                        />
+                        <p className="text-[10px] text-indigo-500/80 mt-1.5 leading-tight px-1">
+                            Ingresa el valor exacto de tu factura para calibrar el simulador. Si lo dejas en 0, se calculará automáticamente.
+                        </p>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                         <NumericInput 
                             label="Tasa E.A." 
@@ -224,7 +244,7 @@
                             onChange={(v) => handleInputChange('rateEA', v)} 
                         />
                         <NumericInput 
-                            label="Plazo (Meses)" 
+                            label="Plazo Restante (Meses)" 
                             type="currency" 
                             value={inputs.months} 
                             onChange={(v) => handleInputChange('months', v)} 
@@ -267,33 +287,70 @@
         // --- LÓGICA DE NEGOCIO ---
 
         const calculateEngine = (params) => {
-            const { loanAmount, rateEA, months, insurance, extraMonthly, usePrimas, oneTimePayment } = params;
+            const { loanAmount, rateEA, months, insurance, extraMonthly, usePrimas, oneTimePayment, currentQuota } = params;
             
-            if (!loanAmount || !rateEA || !months) return null;
+            if (!loanAmount || !rateEA) return null;
 
             const rateMonthly = Math.pow(1 + rateEA / 100, 1 / 12) - 1;
-            const totalMonthsOriginal = months; 
+            
+            // 1. DETERMINAR LA CUOTA BASE (Capital + Interés)
+            let pmtBase;
+            let pmtTotalObligatory;
+            let isManualQuota = false;
 
-            const pmtBase = loanAmount * (rateMonthly * Math.pow(1 + rateMonthly, totalMonthsOriginal)) / (Math.pow(1 + rateMonthly, totalMonthsOriginal) - 1);
-            const pmtTotalObligatory = pmtBase + insurance;
+            if (currentQuota && currentQuota > insurance) {
+                // Modo Calibrado: Usar la cuota que el usuario dice
+                pmtTotalObligatory = currentQuota;
+                pmtBase = currentQuota - insurance;
+                isManualQuota = true;
+            } else {
+                // Modo Automático: Calcular usando fórmula francesa estándar
+                if (!months) return null; // Necesitamos plazo si es automático
+                pmtBase = loanAmount * (rateMonthly * Math.pow(1 + rateMonthly, months)) / (Math.pow(1 + rateMonthly, months) - 1);
+                pmtTotalObligatory = pmtBase + insurance;
+            }
 
+            // SIMULACIÓN BASE (BANCO)
+            // Si es manual, no sabemos el plazo original exacto, lo calculamos proyectando hasta que saldo sea 0
             let balanceBase = loanAmount;
             let totalInterestBase = 0;
             const scheduleBase = [];
+            let monthCounter = 0;
+            
+            // Límite de seguridad para while loops (evitar crash)
+            const SAFE_LIMIT = 600; 
 
-            for(let i = 1; i <= totalMonthsOriginal; i++) {
+            while (balanceBase > 100 && monthCounter < SAFE_LIMIT) {
+                monthCounter++;
                 const interest = balanceBase * rateMonthly;
-                const capital = pmtBase - interest;
+                let capital = pmtBase - interest;
+                
+                // Ajuste final si el saldo es menor al capital calculado
+                if (capital > balanceBase) {
+                    capital = balanceBase;
+                    // En el último mes, el pago podría ser menor si el saldo es pequeño
+                    // O mantenemos la cuota y ajustamos. Para simplificar, asumimos cuota constante hasta el final.
+                } else if (capital < 0) {
+                    // Si el interés es mayor que la cuota (Cuota Mal definida por usuario)
+                    // Esto es un error crítico financiero (Amortización Negativa)
+                    // Forzamos capital 0 para no crecer la deuda infinitamente en la simulación
+                    capital = 0;
+                }
+
                 balanceBase -= capital;
                 totalInterestBase += interest;
                 scheduleBase.push({
-                    month: i,
+                    month: monthCounter,
                     balance: balanceBase > 0 ? balanceBase : 0,
                     interestaccum: totalInterestBase
                 });
             }
+
+            const totalMonthsOriginal = scheduleBase.length;
             const totalPaymentOriginal = loanAmount + totalInterestBase + (insurance * totalMonthsOriginal);
 
+
+            // SIMULACIÓN ESTRATEGIA (CON ABONOS)
             let schedule = [];
             let balance = loanAmount;
             let totalInterest = 0;
@@ -307,17 +364,17 @@
                 deudaEstrategia: loanAmount,
             });
 
-            const maxMonths = totalMonthsOriginal + 12;
-
-            while (balance > 100 && currentMonth < maxMonths) {
+            while (balance > 100 && currentMonth < SAFE_LIMIT) {
                 currentMonth++;
                 const baseData = scheduleBase[currentMonth - 1] || { balance: 0 };
                 let interest = balance * rateMonthly;
+                
+                // Definir Abonos Extras
                 let paymentExtra = extraMonthly;
-
                 if (usePrimas && (currentMonth % 12 === 6 || currentMonth % 12 === 0)) paymentExtra += extraMonthly; 
                 if (currentMonth === 1) paymentExtra += oneTimePayment;
 
+                // Pago Total Disponible para este mes
                 let paymentAvailable = pmtBase + paymentExtra;
                 let capital = paymentAvailable - interest;
 
@@ -325,6 +382,8 @@
                     capital = balance;
                     paymentAvailable = capital + interest;
                 }
+                // Manejo de amortización negativa en estrategia también (aunque raro con abonos extra)
+                if (capital < 0) capital = 0;
 
                 balance -= capital;
                 totalInterest += interest;
@@ -340,6 +399,7 @@
                     extraApplied: paymentExtra
                 });
 
+                // Puntos para la gráfica (reducimos densidad)
                 if (currentMonth % 3 === 0 || balance <= 100 || currentMonth === 1) {
                     graphData.push({
                         mes: currentMonth,
@@ -349,6 +409,7 @@
                 }
             }
 
+            // Rellenar la gráfica hasta el final del plazo original para que se vea la diferencia
             if (currentMonth < totalMonthsOriginal) {
                 graphData.push({
                     mes: totalMonthsOriginal,
@@ -368,7 +429,8 @@
                 monthlyObligatory: pmtTotalObligatory,
                 monthlyTotalEffort: pmtTotalObligatory + extraMonthly, 
                 effortIncreasePct: (extraMonthly / pmtTotalObligatory) * 100,
-                timeReductionPct: ((totalMonthsOriginal - schedule.length) / totalMonthsOriginal) * 100
+                timeReductionPct: ((totalMonthsOriginal - schedule.length) / totalMonthsOriginal) * 100,
+                isManualQuota // Flag para la UI
                 },
                 graphData,
                 schedule
@@ -633,6 +695,7 @@
                             <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1 flex items-center">
                                 <span className="w-2 h-2 rounded-full bg-slate-300 mr-2"></span>
                                 Pago Mínimo (Banco)
+                                {metrics.isManualQuota && <span className="ml-2 text-[9px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full">CALIBRADO</span>}
                             </p>
                             <div className="flex items-baseline gap-2">
                                 <h3 className="text-2xl lg:text-3xl font-bold text-slate-700">{formatCOP(metrics.monthlyObligatory)}</h3>
@@ -967,7 +1030,8 @@
                 insurance: 65000,
                 extraMonthly: 400000,
                 oneTimePayment: 0,
-                usePrimas: true 
+                usePrimas: true,
+                currentQuota: 0 // Nuevo campo para calibración manual
             });
             const [aiReport, setAiReport] = useState(null);
             const [isGeneratingReport, setIsGeneratingReport] = useState(false);
