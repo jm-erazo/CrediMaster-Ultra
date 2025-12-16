@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CrediMaster Pro</title>
+    <title>CrediMaster Pro by Jose Mejia</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -64,7 +64,7 @@
             List, ChevronRight, Info, Printer, Sparkles, Bot, Settings, 
             FileText, TrendingDown, TrendingUp, Share2, Copy, Calculator, PiggyBank,
             Coffee, Home, Car, ShoppingBag, Zap, ExternalLink, User, Building2, CreditCard,
-            RotateCcw, CheckCircle2
+            RotateCcw, CheckCircle2, Code2
         } from 'lucide-react';
         
         import { 
@@ -328,12 +328,7 @@
                 // Ajuste final si el saldo es menor al capital calculado
                 if (capital > balanceBase) {
                     capital = balanceBase;
-                    // En el último mes, el pago podría ser menor si el saldo es pequeño
-                    // O mantenemos la cuota y ajustamos. Para simplificar, asumimos cuota constante hasta el final.
                 } else if (capital < 0) {
-                    // Si el interés es mayor que la cuota (Cuota Mal definida por usuario)
-                    // Esto es un error crítico financiero (Amortización Negativa)
-                    // Forzamos capital 0 para no crecer la deuda infinitamente en la simulación
                     capital = 0;
                 }
 
@@ -369,30 +364,47 @@
                 const baseData = scheduleBase[currentMonth - 1] || { balance: 0 };
                 let interest = balance * rateMonthly;
                 
-                // Definir Abonos Extras
+                // --- CÁLCULO DESGLOSADO DE CAPITAL ---
+                
+                // 1. Capital Ordinario (lo que paga la cuota normal)
+                let capitalOrdinary = pmtBase - interest;
+                if (capitalOrdinary < 0) capitalOrdinary = 0;
+
+                // 2. Definir Abonos Extras
                 let paymentExtra = extraMonthly;
                 if (usePrimas && (currentMonth % 12 === 6 || currentMonth % 12 === 0)) paymentExtra += extraMonthly; 
                 if (currentMonth === 1) paymentExtra += oneTimePayment;
 
-                // Pago Total Disponible para este mes
-                let paymentAvailable = pmtBase + paymentExtra;
-                let capital = paymentAvailable - interest;
+                // 3. Capital Total (Ordinario + Extra)
+                let capitalTotal = capitalOrdinary + paymentExtra;
 
-                if (capital > balance) {
-                    capital = balance;
-                    paymentAvailable = capital + interest;
+                // Ajuste si el capital total supera el saldo
+                if (capitalTotal > balance) {
+                    capitalTotal = balance;
+                    // Ajustamos el capital ordinario y extra proporcionalmente o priorizamos el ordinario?
+                    // Lógica simple: Si el saldo es menor que la cuota base, el ordinario cubre todo.
+                    // Si el saldo es mayor que cuota base pero menor que total, el extra se reduce.
+                    if (balance < capitalOrdinary) {
+                         capitalOrdinary = balance;
+                         paymentExtra = 0;
+                    } else {
+                         // capitalOrdinary se mantiene, el resto es extra
+                         paymentExtra = balance - capitalOrdinary;
+                    }
                 }
-                // Manejo de amortización negativa en estrategia también (aunque raro con abonos extra)
-                if (capital < 0) capital = 0;
 
-                balance -= capital;
+                balance -= capitalTotal;
                 totalInterest += interest;
                 totalInsurance += insurance;
+                
+                // Pago Total que sale del bolsillo
+                let paymentTotalPocket = capitalTotal + interest + insurance;
 
                 schedule.push({
                     month: currentMonth,
-                    paymentTotal: paymentAvailable + insurance,
-                    capital,
+                    paymentTotal: paymentTotalPocket,
+                    capitalOrdinary: capitalOrdinary, // Nueva columna
+                    capitalTotal: capitalTotal,       // Nueva columna (antes llamada capital)
                     interest,
                     insurance,
                     balance: balance > 0 ? balance : 0,
@@ -863,7 +875,7 @@
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center text-xs font-bold text-amber-700 hover:text-amber-900 hover:underline"
                             >
-                                Leer Ley Completa <ExternalLink size={12} className="ml-1"/>
+                                Ley 546 de 1999 - Gestor Normativo - Función Pública <ExternalLink size={12} className="ml-1"/>
                             </a>
                         </div>
                     </div>
@@ -1001,7 +1013,7 @@
                                 </div>
                                 
                                 <div className="mt-12 text-[10px] text-slate-400 text-center border-t border-slate-100 pt-4 print:hidden">
-                                    Generado con CrediMaster Pro - Herramienta de Libertad Financiera
+                                    Generado con CrediMaster Pro - Autor: Jose Manuel Mejia Erazo
                                 </div>
                             </div>
                         </div>
@@ -1111,24 +1123,32 @@
                         );
                     case 'schedule':
                         return (
-                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden pb-20 lg:pb-0">
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden pb-20 lg:pb-0 animate-in fade-in">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-left">
                                         <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
                                             <tr>
                                                 <th className="px-4 py-3">Mes</th>
-                                                <th className="px-4 py-3 text-right">Cuota</th>
+                                                <th className="px-4 py-3 text-right">Cuota Total</th>
+                                                <th className="px-4 py-3 text-right text-blue-600">Abono Ord. (Cap)</th>
                                                 <th className="px-4 py-3 text-right text-emerald-600">Extra</th>
+                                                <th className="px-4 py-3 text-right text-indigo-700 font-bold">Abono Total (Cap)</th>
                                                 <th className="px-4 py-3 text-right text-rose-500">Interés</th>
                                                 <th className="px-4 py-3 text-right">Saldo</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {results.schedule.map((row) => (
-                                                <tr key={row.month} className="hover:bg-slate-50/50">
+                                                <tr key={row.month} className="hover:bg-slate-50/50 transition-colors">
                                                     <td className="px-4 py-3 font-medium text-slate-900">{row.month}</td>
-                                                    <td className="px-4 py-3 text-right">{formatCOP(row.paymentTotal)}</td>
-                                                    <td className="px-4 py-3 text-right text-emerald-600">{row.extraApplied > 0 ? `+${formatCOP(row.extraApplied)}` : '-'}</td>
+                                                    <td className="px-4 py-3 text-right font-medium">{formatCOP(row.paymentTotal)}</td>
+                                                    <td className="px-4 py-3 text-right text-blue-600">{formatCOP(row.capitalOrdinary)}</td>
+                                                    <td className="px-4 py-3 text-right text-emerald-600 font-medium">
+                                                        {row.extraApplied > 0 ? `+${formatCOP(row.extraApplied)}` : '-'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right text-indigo-700 font-bold bg-indigo-50/30">
+                                                        {formatCOP(row.capitalTotal)}
+                                                    </td>
                                                     <td className="px-4 py-3 text-right text-rose-500">{formatCOP(row.interest)}</td>
                                                     <td className="px-4 py-3 text-right font-bold text-slate-700">{formatCOP(row.balance)}</td>
                                                 </tr>
@@ -1155,7 +1175,7 @@
             const navItems = [
                 { id: 'dashboard', label: 'Inicio', icon: PieChart },
                 { id: 'budget', label: 'Estudio Financiero', icon: Calculator },
-                { id: 'schedule', label: 'Tabla', icon: List },
+                { id: 'schedule', label: 'Tabla Amortización', icon: List },
                 { id: 'advisor', label: 'IA Asesor', icon: BrainCircuit },
                 { id: 'legal', label: 'Legal', icon: FileText },
             ];
@@ -1166,18 +1186,18 @@
                 {/* --- DESKTOP SIDEBAR --- */}
                 <aside className="hidden lg:flex flex-col w-80 bg-white border-r border-slate-200 h-screen overflow-y-auto fixed left-0 top-0 z-30 shadow-xl lg:shadow-none">
                     <div className="p-6 border-b border-slate-100">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-200/50">
-                        <TrendingDown size={24} className="text-white" />
+                        <div className="flex items-center gap-3">
+                            <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-200/50">
+                            <TrendingDown size={24} className="text-white" />
+                            </div>
+                            <div>
+                                <h1 className="font-bold text-xl leading-none text-slate-900 tracking-tight">CrediMaster</h1>
+                                <span className="text-[10px] text-blue-600 font-bold tracking-[0.2em] uppercase">Pro</span>
+                            </div>
                         </div>
-                        <div>
-                            <h1 className="font-bold text-xl leading-none text-slate-900 tracking-tight">CrediMaster</h1>
-                            <span className="text-[10px] text-blue-600 font-bold tracking-[0.2em] uppercase">Pro</span>
-                        </div>
-                    </div>
                     </div>
                     
-                    <div className="p-6 space-y-8">
+                    <div className="p-6 space-y-8 flex-1">
                         <nav className="space-y-1">
                             {navItems.map((item) => (
                                 <button
@@ -1199,6 +1219,15 @@
                         <div className="pt-6 border-t border-slate-100">
                             <CreditParametersForm inputs={inputs} handleInputChange={handleInputChange} />
                         </div>
+
+                        {/* DESKTOP FOOTER CREDIT */}
+                        <div className="pt-6 mt-auto text-center opacity-70 hover:opacity-100 transition-opacity">
+                            <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1">Desarrollado por</p>
+                            <div className="flex items-center justify-center gap-2 text-slate-600">
+                                <Code2 size={14} className="text-blue-500" />
+                                <span className="font-bold text-xs">Jose Mejia</span>
+                            </div>
+                        </div>
                     </div>
                 </aside>
 
@@ -1209,7 +1238,10 @@
                             <div className="bg-blue-600 p-1.5 rounded-lg">
                                 <TrendingDown size={16} className="text-white" />
                             </div>
-                            <span className="font-bold text-slate-800">CrediMaster</span>
+                            <div className="flex flex-col">
+                                <span className="font-bold text-slate-800 text-sm leading-tight">CrediMaster</span>
+                                <span className="text-[9px] text-slate-400 font-medium leading-tight">by jm_erazo</span>
+                            </div>
                         </div>
                         <div className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
                             v2.0
@@ -1260,4 +1292,4 @@
         root.render(<App />);
     </script>
 </body>
-    </html>
+</html>
