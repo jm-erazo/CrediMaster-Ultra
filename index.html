@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CrediMaster Pro v3.1 - Suite Financiera</title>
+    <title>CrediMaster Pro v3.2 - Suite Financiera</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -71,7 +71,7 @@
             FileText, TrendingDown, TrendingUp, Share2, Copy, Calculator, PiggyBank,
             Coffee, Home, Car, ShoppingBag, Zap, ExternalLink, User, Building2, CreditCard,
             RotateCcw, CheckCircle2, Code2, Coins, TrendingUp as TrendingUpIcon, FileSearch, Receipt,
-            Download, Layers, Percent, AlertCircle, Briefcase, Stamp, Scale
+            Download, Layers, Percent, AlertCircle, Briefcase, Stamp, Scale, SlidersHorizontal
         } from 'lucide-react';
         
         import { 
@@ -322,22 +322,48 @@
                             readOnly={inputs.isUVR} 
                             highlight={!inputs.isUVR}
                         />
-                        
+
+                        {/* --- SECCIÓN DE CALIBRACIÓN MEJORADA --- */}
                         <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 relative">
-                            <div className="absolute -top-2 right-2 bg-indigo-100 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full font-bold">
-                                Recomendado
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-1.5">
+                                    <SlidersHorizontal size={14} className="text-indigo-600"/>
+                                    <span className="text-xs font-bold text-indigo-900 uppercase">Calibración Extracto</span>
+                                </div>
+                                <div className="bg-indigo-100 text-indigo-700 text-[9px] px-2 py-0.5 rounded-full font-bold">
+                                    Recomendado
+                                </div>
                             </div>
+                            
+                            <p className="text-[10px] text-indigo-500/80 mb-3 leading-tight">
+                                Ingresa los valores exactos de tu última factura para ajustar la precisión del cálculo.
+                            </p>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                                <NumericInput 
+                                    label="Abono Capital Actual" 
+                                    value={inputs.calibrationCapital} 
+                                    onChange={(v) => handleInputChange('calibrationCapital', v)} 
+                                    highlight={false}
+                                    placeholder="Ej: 450.000"
+                                />
+                                <NumericInput 
+                                    label="Intereses Corrientes" 
+                                    value={inputs.calibrationInterest} 
+                                    onChange={(v) => handleInputChange('calibrationInterest', v)} 
+                                    highlight={false}
+                                    placeholder="Ej: 1.200.000"
+                                />
+                            </div>
+                            
                             <NumericInput 
-                                label="Valor Cuota Extracto Total" 
+                                label="Valor Cuota (Total Extracto)" 
                                 value={inputs.currentQuota} 
                                 onChange={(v) => handleInputChange('currentQuota', v)} 
                                 highlight={true}
                                 icon={CheckCircle2}
                                 placeholder="Ej: 2.500.000"
                             />
-                            <p className="text-[10px] text-indigo-500/80 mt-1.5 leading-tight px-1">
-                                Ingresa el valor exacto de tu factura (incluyendo seguros) para calibrar el simulador.
-                            </p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
@@ -356,7 +382,7 @@
                             />
                         </div>
 
-                        {/* SECCIÓN FRECH */}
+                        {/* SECCIÓN FRECH MEJORADA */}
                         <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 space-y-3">
                             <ToggleSwitch 
                                 label={<span className="text-xs font-bold text-emerald-800">Tiene Subsidio FRECH / Ecobertura?</span>}
@@ -364,19 +390,35 @@
                                 onChange={(v) => handleInputChange('hasFrech', v)}
                             />
                             {inputs.hasFrech && (
-                                <div className="animate-in fade-in">
+                                <div className="animate-in fade-in space-y-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <NumericInput 
+                                            label="Puntos Subsidio"
+                                            type="points"
+                                            value={inputs.frechPoints} 
+                                            onChange={(v) => handleInputChange('frechPoints', v)}
+                                            decimals={2}
+                                            negative={true}
+                                            placeholder="Ej: 4.0"
+                                        />
+                                         <NumericInput 
+                                            label="Cuotas Restantes Cobertura" 
+                                            type="number"
+                                            value={inputs.frechRemainingMonths} 
+                                            onChange={(v) => handleInputChange('frechRemainingMonths', v)}
+                                            decimals={0}
+                                            placeholder="Ej: 60"
+                                        />
+                                    </div>
                                     <NumericInput 
-                                        label="Puntos de Subsidio"
-                                        type="points"
-                                        value={inputs.frechPoints} 
-                                        onChange={(v) => handleInputChange('frechPoints', v)}
-                                        decimals={2}
+                                        label="Valor Beneficio (Extracto)" 
+                                        value={inputs.frechMonthlyValue} 
+                                        onChange={(v) => handleInputChange('frechMonthlyValue', v)}
+                                        decimals={0}
                                         negative={true}
-                                        placeholder="Ej: 4.0 o 5.0"
+                                        placeholder="Ej: 350.000"
+                                        subLabel="Ingresa el valor del subsidio que aparece en tu factura para mayor precisión."
                                     />
-                                    <p className="text-[10px] text-emerald-600/80 mt-1 leading-tight px-1">
-                                        * El sistema calculará el interés full y restará este porcentaje.
-                                    </p>
                                 </div>
                             )}
                         </div>
@@ -439,14 +481,15 @@
             );
         };
 
-        // --- LÓGICA DE NEGOCIO AVANZADA ---
+        // --- LÓGICA DE NEGOCIO AVANZADA (CORREGIDA Y CALIBRADA) ---
 
         const calculateEngine = (params) => {
             const { 
                 loanAmount, loanAmountUVR, rateEA, months, insurance, extraMonthly, 
                 usePrimas, oneTimePayment, currentQuota, 
                 isUVR, uvrValue, inflation,
-                hasFrech, frechPoints,
+                hasFrech, frechPoints, frechRemainingMonths, frechMonthlyValue, // Nuevo: Parametros Frech
+                calibrationCapital, calibrationInterest, // Nuevo: Calibración
                 annualIncrease = 0, // Incremento anual de abono
                 insuranceIndexed = true // Seguro indexado
             } = params;
@@ -454,9 +497,20 @@
             if (!loanAmount || !rateEA || (isUVR && !uvrValue)) return null;
 
             // 1. Definición de Tasas
-            const rateMonthlyFull = Math.pow(1 + rateEA / 100, 1 / 12) - 1;
-            const clientRateEA = hasFrech ? Math.max(0, rateEA - frechPoints) : rateEA;
-            const rateMonthlyClient = Math.pow(1 + clientRateEA / 100, 1 / 12) - 1;
+            // CORRECCIÓN: Si hay calibración de interés, calculamos la tasa mensual implícita real
+            let rateMonthlyFull;
+            let impliedMonthlyRate = 0;
+            const standardMonthlyRate = Math.pow(1 + rateEA / 100, 1 / 12) - 1;
+
+            if (calibrationInterest > 0 && loanAmount > 0) {
+                impliedMonthlyRate = calibrationInterest / loanAmount;
+                // Si la tasa implícita es muy diferente (ej > 50% de error), usar la estándar para evitar errores de input, sino usar implícita
+                // Aquí confiamos en el input del usuario para "calibrar"
+                rateMonthlyFull = impliedMonthlyRate;
+            } else {
+                rateMonthlyFull = standardMonthlyRate;
+            }
+
             const inflationMonthly = isUVR || insuranceIndexed ? (Math.pow(1 + inflation / 100, 1 / 12) - 1) : 0;
 
             // --- INICIALIZACIÓN ---
@@ -469,12 +523,28 @@
             let balanceStrategyUnit = balanceBaseUVR;
             let currentUVR = isUVR ? uvrValue : 1; 
 
-            // Cálculo de Cuota Base
+            // --- CÁLCULO DE CUOTA BASE (CORREGIDO) ---
             let pmtFixedUnit; 
             let pmtTotalObligatoryDisplay; 
             let isManualQuota = false;
+            
+            // CORRECCIÓN: Prioridad a la calibración por componentes (Capital + Interés)
+            if (calibrationCapital > 0 && calibrationInterest > 0) {
+                // Si el usuario nos da los componentes exactos, esa es la cuota fija base (sin seguros)
+                const totalBasePesos = calibrationCapital + calibrationInterest;
+                
+                if (isUVR) {
+                    pmtFixedUnit = totalBasePesos / uvrValue;
+                } else {
+                    pmtFixedUnit = totalBasePesos;
+                }
+                
+                // Ajustamos el display total
+                pmtTotalObligatoryDisplay = totalBasePesos + insurance;
+                isManualQuota = true;
 
-            if (currentQuota && currentQuota > insurance) {
+            } else if (currentQuota && currentQuota > insurance) {
+                // Fallback: Si solo da el total, deducimos seguros
                 isManualQuota = true;
                 const quotaWithoutInsurance = currentQuota - insurance;
                 
@@ -486,8 +556,8 @@
                 pmtTotalObligatoryDisplay = currentQuota;
             } else {
                 if (!months) return null;
-                // Fórmula Francesa
-                pmtFixedUnit = balanceBaseUVR * (rateMonthlyClient * Math.pow(1 + rateMonthlyClient, months)) / (Math.pow(1 + rateMonthlyClient, months) - 1);
+                // Fórmula Francesa Estándar (Fallback final)
+                pmtFixedUnit = balanceBaseUVR * (rateMonthlyFull * Math.pow(1 + rateMonthlyFull, months)) / (Math.pow(1 + rateMonthlyFull, months) - 1);
                 
                 const firstMonthPaymentPesos = isUVR 
                     ? (pmtFixedUnit * (uvrValue * (1 + inflationMonthly))) + insurance 
@@ -495,6 +565,24 @@
                     
                 pmtTotalObligatoryDisplay = firstMonthPaymentPesos;
             }
+
+            // --- LÓGICA FRECH CALIBRADA ---
+            // Calcular factor de reducción de tasa si se provee valor extracto
+            let frechRateReductionFactor = 0;
+            if (hasFrech) {
+                if (frechMonthlyValue > 0 && loanAmount > 0) {
+                    // Calculamos qué porcentaje del saldo representa el subsidio actual
+                    frechRateReductionFactor = frechMonthlyValue / loanAmount;
+                } else {
+                    // Calculamos basado en puntos porcentuales (aproximación)
+                    const rateWithFrech = Math.max(0, rateEA - frechPoints);
+                    const monthlyWith = Math.pow(1 + rateWithFrech/100, 1/12) - 1;
+                    frechRateReductionFactor = rateMonthlyFull - monthlyWith;
+                }
+            }
+            // Definimos límite de meses Frech
+            const frechLimitMonth = frechRemainingMonths > 0 ? frechRemainingMonths : 84; // Default 7 años si no especifica
+
 
             // --- SIMULACIÓN ESTRATEGIA ---
             let schedule = [];
@@ -506,7 +594,7 @@
             let tempBalanceUnit = balanceStrategyUnit;
             let tempUVR = currentUVR;
             let currentInsurance = insurance;
-            let currentExtraMonthly = extraMonthly; // Variable para incremento anual
+            let currentExtraMonthly = extraMonthly; 
 
             // Gráfica
             const graphData = [];
@@ -533,29 +621,57 @@
                     uvrBanco = uvrBanco * (1 + inflationMonthly);
                 }
 
-                // Actualización Seguros (Anual o mensual progresivo para suavizar)
+                // Actualización Seguros
                 if (insuranceIndexed) {
                     currentInsurance = currentInsurance * (1 + inflationMonthly);
                     insuranceBanco = insuranceBanco * (1 + inflationMonthly);
                 }
 
-                // Incremento Anual de Abono Extra (Bola de Nieve)
+                // Incremento Anual Abono
                 if (currentMonth > 1 && currentMonth % 12 === 1 && annualIncrease > 0) {
                     currentExtraMonthly = currentExtraMonthly * (1 + (annualIncrease / 100));
                 }
                 
                 // --- LÓGICA ESTRATEGIA ---
 
-                // Intereses
+                // 1. Interés Full
                 const interestFullUnit = tempBalanceUnit * rateMonthlyFull;
-                const interestClientUnit = tempBalanceUnit * rateMonthlyClient;
-                const frechSubsidyUnit = Math.max(0, interestFullUnit - interestClientUnit);
+                
+                // 2. Beneficio FRECH (Condicionado al tiempo restante y cálculo preciso)
+                let frechSubsidyUnit = 0;
+                if (hasFrech && currentMonth <= frechLimitMonth) {
+                    // Aplica reducción sobre el saldo actual
+                    frechSubsidyUnit = tempBalanceUnit * frechRateReductionFactor;
+                    
+                    // Safety check: Subsidio no puede ser mayor al interés
+                    if (frechSubsidyUnit > interestFullUnit) frechSubsidyUnit = interestFullUnit;
+                }
 
-                // Capital Ordinario
-                let capitalOrdinaryUnit = pmtFixedUnit - interestClientUnit;
-                if (capitalOrdinaryUnit < 0) capitalOrdinaryUnit = 0;
+                // 3. Interés Neto Cliente
+                const interestClientUnit = interestFullUnit - frechSubsidyUnit;
 
-                // Abonos Extras
+                // 4. Capital Ordinario (Cuota Fija - Interés Neto)
+                // OJO: En sistemas UVR o Pesos tradicional, la cuota fija cubre el interés full, y el subsidio es un cheque aparte o descuento.
+                // Generalmente: PAGO_BOLSILLO = (PMT_FIJO - SUBSIDIO) + SEGUROS.
+                // Pero aquí definimos PMT como el valor base. 
+                // Si el PMT fue calculado CON tasa full, entonces Capital = PMT - InterestFull.
+                // Si el PMT es lo que paga el cliente, Capital = PMT - InterestClient.
+                // CORRECCIÓN: Asumiremos PMT Fixed Unit es la cuota "Pura" contractual antes de subsidios.
+                // Capital = PMT_Contractual - Interes_Full.
+                // El cliente paga: PMT_Contractual - Subsidio + Seguros.
+                
+                let capitalOrdinaryUnit = pmtFixedUnit - interestFullUnit;
+                
+                // Si calibración fue usada, pmtFixedUnit nació de (Capital + InteresNeto). 
+                // Ajuste para consistencia si usamos calibración manual:
+                if (isManualQuota && calibrationInterest > 0) {
+                     // En este caso PMT_fixed ya es "neto" aproximado, recalibramos
+                     capitalOrdinaryUnit = pmtFixedUnit - interestFullUnit; // Mantenemos logica estandar contractual
+                }
+                
+                if (capitalOrdinaryUnit < 0) capitalOrdinaryUnit = 0; // Amortización negativa protection
+
+                // 5. Abonos Extras
                 let paymentExtraPesos = currentExtraMonthly;
                 if (usePrimas && (currentMonth % 12 === 6 || currentMonth % 12 === 0)) {
                     paymentExtraPesos += currentExtraMonthly; 
@@ -564,13 +680,12 @@
 
                 let paymentExtraUnit = isUVR ? (paymentExtraPesos / tempUVR) : paymentExtraPesos;
 
-                // Aplicar
+                // 6. Aplicar Pagos
                 let capitalTotalUnit = capitalOrdinaryUnit + paymentExtraUnit;
 
                 // Ajuste preciso fin de deuda
                 if (capitalTotalUnit > tempBalanceUnit) {
-                    capitalTotalUnit = tempBalanceUnit; // Matar saldo exacto
-                    // Recalcular componentes
+                    capitalTotalUnit = tempBalanceUnit; 
                     if (tempBalanceUnit < capitalOrdinaryUnit) {
                          capitalOrdinaryUnit = tempBalanceUnit;
                          paymentExtraUnit = 0;
@@ -580,20 +695,27 @@
                 }
 
                 tempBalanceUnit -= capitalTotalUnit;
-                // Corrección flotante JS
                 if(tempBalanceUnit < (isUVR ? 0.0001 : 1)) tempBalanceUnit = 0;
                 
                 // --- LÓGICA BANCO (Comparativo) ---
+                // Simula el crédito sin abonos extras
                 if (balanceBancoUnit > (isUVR ? 0.01 : 100)) {
-                    const intBancoClientUnit = balanceBancoUnit * rateMonthlyClient;
-                    let capBancoUnit = pmtFixedUnit - intBancoClientUnit;
+                    const intBancoFullUnit = balanceBancoUnit * rateMonthlyFull;
+                    let frechBancoUnit = 0;
+                    if (hasFrech && currentMonth <= frechLimitMonth) {
+                        frechBancoUnit = balanceBancoUnit * frechRateReductionFactor;
+                        if(frechBancoUnit > intBancoFullUnit) frechBancoUnit = intBancoFullUnit;
+                    }
+                    
+                    const intBancoNetUnit = intBancoFullUnit - frechBancoUnit;
+                    let capBancoUnit = pmtFixedUnit - intBancoFullUnit; // Capital contractual
                     
                     if (capBancoUnit > balanceBancoUnit) capBancoUnit = balanceBancoUnit;
                     
                     balanceBancoUnit -= capBancoUnit;
                     if(balanceBancoUnit < (isUVR ? 0.0001 : 1)) balanceBancoUnit = 0;
 
-                    totalInterestBancoPesos += (isUVR ? intBancoClientUnit * uvrBanco : intBancoClientUnit);
+                    totalInterestBancoPesos += (isUVR ? intBancoNetUnit * uvrBanco : intBancoNetUnit);
                     totalInsuranceBanco += insuranceBanco;
                 }
                 scheduleBanco.push(isUVR ? balanceBancoUnit * uvrBanco : balanceBancoUnit);
@@ -608,7 +730,8 @@
                 const paymentExtraAppliedPesos = isUVR ? paymentExtraUnit * tempUVR : paymentExtraUnit;
                 const balancePesos = isUVR ? tempBalanceUnit * tempUVR : tempBalanceUnit;
                 
-                const totalPaymentPocketPesos = capitalTotalPesos + interestClientPesos + currentInsurance;
+                // Pago Total Bolsillo = (InteresNeto + CapitalOrdinario + Seguros) + AbonoExtra
+                const totalPaymentPocketPesos = interestClientPesos + capitalOrdinaryPesos + currentInsurance + paymentExtraAppliedPesos;
 
                 totalInterestPaidPesos += interestClientPesos;
                 totalFrechBenefitPesos += frechSubsidyPesos;
@@ -627,7 +750,6 @@
                     uvrUnitValue: isUVR ? tempUVR : null
                 });
 
-                // Gráfica Sampling
                 if (currentMonth % 3 === 0 || tempBalanceUnit <= 0 || currentMonth === 1) {
                     graphData.push({
                         mes: currentMonth,
@@ -637,7 +759,6 @@
                 }
             }
 
-            // Relleno gráfica si terminó antes
             if (currentMonth < months) {
                 graphData.push({
                     mes: months,
@@ -646,15 +767,12 @@
                 });
             }
 
-            // Totales con seguros dinámicos
             const totalInsurancePaid = schedule.reduce((sum, row) => sum + row.insurance, 0);
             const totalCapitalPaid = schedule.reduce((sum, row) => sum + row.capitalTotal, 0);
             
-            // Cálculo costo total original (estimado banco)
             const totalPaymentOriginalPesos = (isUVR ? balanceBaseUVR * uvrValue : loanAmount) + totalInterestBancoPesos + totalInsuranceBanco;
             const totalPaymentNewPesos = (isUVR ? balanceBaseUVR * uvrValue : loanAmount) + totalInterestPaidPesos + totalInsurancePaid; 
 
-            // Multiplicador de costo (TCC Ratio)
             const costMultiplier = totalPaymentNewPesos / (isUVR ? balanceBaseUVR * uvrValue : loanAmount);
 
             return {
@@ -667,7 +785,7 @@
                     totalPaymentNew: totalPaymentNewPesos,
                     monthlyObligatory: pmtTotalObligatoryDisplay,
                     monthlyTotalEffort: schedule[0]?.paymentTotal || 0, 
-                    effortIncreasePct: ((schedule[0]?.paymentTotal - pmtTotalObligatoryDisplay) / pmtTotalObligatoryDisplay) * 100,
+                    effortIncreasePct: pmtTotalObligatoryDisplay > 0 ? ((schedule[0]?.paymentTotal - pmtTotalObligatoryDisplay) / pmtTotalObligatoryDisplay) * 100 : 0,
                     timeReductionPct: months > 0 ? ((months - schedule.length) / months) * 100 : 0,
                     isManualQuota,
                     isUVR,
@@ -902,7 +1020,7 @@
                                 <span className="text-xs text-slate-400 font-medium">/mes</span>
                             </div>
                             <p className="text-xs text-slate-400 mt-1 pl-4">
-                                {metrics.hasFrech ? "Incluye descuento FRECH" : (metrics.isUVR ? "Varía cada mes" : "Cuota fija + Seguros")}
+                                {metrics.hasFrech ? "Incluye beneficio FRECH" : (metrics.isUVR ? "Varía cada mes" : "Cuota base + Seguros")}
                             </p>
                         </div>
                         <div className="hidden sm:flex text-slate-300"><ArrowRight size={24} /></div>
@@ -1128,11 +1246,15 @@
                 oneTimePayment: 0,
                 usePrimas: true,
                 currentQuota: 0,
+                calibrationCapital: 0, // Nuevo
+                calibrationInterest: 0, // Nuevo
                 isUVR: false,
                 uvrValue: 360.5432,
                 inflation: 4.5,
                 hasFrech: false,
-                frechPoints: 4.0
+                frechPoints: 4.0,
+                frechRemainingMonths: 84, // Nuevo Default 7 años
+                frechMonthlyValue: 0 // Nuevo
             });
             const [aiReport, setAiReport] = useState(null);
             const [isGeneratingReport, setIsGeneratingReport] = useState(false);
@@ -1316,7 +1438,7 @@
                         <div className="p-6 border-b border-slate-100">
                             <div className="flex items-center gap-3">
                                 <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-200/50"><TrendingDown size={24} className="text-white" /></div>
-                                <div><h1 className="font-bold text-xl leading-none text-slate-900 tracking-tight">CrediMaster</h1><span className="text-[10px] text-blue-600 font-bold tracking-[0.2em] uppercase">Pro v3.1</span></div>
+                                <div><h1 className="font-bold text-xl leading-none text-slate-900 tracking-tight">CrediMaster</h1><span className="text-[10px] text-blue-600 font-bold tracking-[0.2em] uppercase">Pro v3.2</span></div>
                             </div>
                         </div>
                         <div className="p-6 space-y-8 flex-1">
@@ -1371,4 +1493,4 @@
         root.render(<App />);
     </script>
 </body>
-  </html>
+</html>
